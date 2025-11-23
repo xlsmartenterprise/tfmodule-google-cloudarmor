@@ -1,0 +1,681 @@
+# tfmodule-google-cloudarmor
+
+Terraform module for deploying and managing Google Cloud Armor security policies with support for both global and regional deployments, pre-configured WAF rules, custom rules, rate limiting, and Layer 7 DDoS protection.
+
+## Features
+
+- **Global and Regional Support** - Automatic scope detection and deployment based on region parameter
+- **Pre-configured WAF Rules** - Google's managed WAF rule sets with customizable sensitivity levels and opt-in/opt-out support
+- **Custom Security Rules** - CEL-based custom rules for complex matching logic and business requirements
+- **IP-based Rules** - Allow or deny traffic based on source IP ranges with IPv4/IPv6 support
+- **Rate Limiting** - Advanced rate limiting with multiple enforcement options (rate-based ban and throttle)
+- **Layer 7 DDoS Protection** - Adaptive protection against Layer 7 DDoS attacks (Global only)
+- **WAF Exclusions** - Fine-tune WAF rules with request header, cookie, URI, and query parameter exclusions
+- **Advanced Configuration** - JSON parsing, custom logging, user IP headers, and request body inspection
+- **Preview Mode** - Test rules without enforcement before applying them
+- **Flexible Rule Management** - Priority-based ordering, dynamic rule creation, and multiple output options
+
+## Usage
+
+### Basic Example
+
+```hcl
+module "cloud_armor" {
+  source = "github.com/your-org/tfmodule-google-cloudarmor"
+
+  project_id  = "my-project-id"
+  name        = "basic-security-policy"
+  description = "Basic Cloud Armor security policy"
+
+  enable_layer7_ddos_defense          = false
+  layer7_ddos_defense_enable          = false
+  layer7_ddos_defense_rule_visibility = "STANDARD"
+}
+```
+
+### Regional Security Policy
+
+```hcl
+module "cloud_armor_regional" {
+  source = "github.com/your-org/tfmodule-google-cloudarmor"
+
+  project_id  = "my-project-id"
+  region      = "us-central1"
+  name        = "regional-security-policy"
+  description = "Regional security policy for US Central"
+
+  enable_layer7_ddos_defense          = false
+  layer7_ddos_defense_enable          = false
+  layer7_ddos_defense_rule_visibility = "STANDARD"
+
+  default_rule_action = "deny(403)"
+}
+```
+
+### Global Policy with Layer 7 DDoS Protection
+
+```hcl
+module "cloud_armor_ddos" {
+  source = "github.com/your-org/tfmodule-google-cloudarmor"
+
+  project_id  = "my-project-id"
+  name        = "ddos-protection-policy"
+  description = "Global policy with Layer 7 DDoS protection"
+
+  enable_layer7_ddos_defense          = true
+  layer7_ddos_defense_enable          = true
+  layer7_ddos_defense_rule_visibility = "PREMIUM"
+
+  json_parsing            = "STANDARD"
+  log_level               = "VERBOSE"
+  user_ip_request_headers = ["X-Forwarded-For", "X-Real-IP"]
+  json_custom_content_types = ["application/vnd.api+json"]
+}
+```
+
+### IP-based Security Rules
+
+```hcl
+module "cloud_armor_ip_rules" {
+  source = "github.com/your-org/tfmodule-google-cloudarmor"
+
+  project_id  = "my-project-id"
+  name        = "ip-blocking-policy"
+  description = "Security policy with IP blocking rules"
+
+  enable_layer7_ddos_defense          = false
+  layer7_ddos_defense_enable          = false
+  layer7_ddos_defense_rule_visibility = "STANDARD"
+
+  security_rules = {
+    deny_malicious_ips = {
+      action        = "deny(403)"
+      priority      = 1000
+      description   = "Block known malicious IP addresses"
+      preview       = false
+      src_ip_ranges = ["192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24"]
+    }
+
+    allow_corporate_ips = {
+      action        = "allow"
+      priority      = 900
+      description   = "Allow traffic from corporate network"
+      preview       = false
+      src_ip_ranges = ["10.0.0.0/8", "172.16.0.0/12"]
+    }
+
+    deny_specific_range = {
+      action        = "deny(403)"
+      priority      = 1100
+      description   = "Block specific IP range"
+      preview       = false
+      src_ip_ranges = ["198.18.0.0/15"]
+    }
+  }
+}
+```
+
+### Pre-configured WAF Rules
+
+```hcl
+module "cloud_armor_waf" {
+  source = "github.com/your-org/tfmodule-google-cloudarmor"
+
+  project_id  = "my-project-id"
+  name        = "waf-security-policy"
+  description = "Security policy with WAF rules"
+
+  enable_layer7_ddos_defense          = true
+  layer7_ddos_defense_enable          = true
+  layer7_ddos_defense_rule_visibility = "PREMIUM"
+
+  pre_configured_rules = {
+    sqli_protection = {
+      action            = "deny(403)"
+      priority          = 1000
+      description       = "SQL injection protection"
+      target_rule_set   = "sqli-v33-stable"
+      sensitivity_level = 1
+      preview           = false
+    }
+
+    xss_protection = {
+      action            = "deny(403)"
+      priority          = 1100
+      description       = "XSS protection"
+      target_rule_set   = "xss-v33-stable"
+      sensitivity_level = 2
+      preview           = false
+    }
+
+    lfi_protection = {
+      action            = "deny(403)"
+      priority          = 1200
+      description       = "Local file inclusion protection"
+      target_rule_set   = "lfi-v33-stable"
+      sensitivity_level = 2
+      preview           = false
+    }
+
+    rce_protection = {
+      action            = "deny(403)"
+      priority          = 1300
+      description       = "Remote code execution protection"
+      target_rule_set   = "rce-v33-stable"
+      sensitivity_level = 1
+      preview           = false
+    }
+
+    rfi_protection = {
+      action            = "deny(403)"
+      priority          = 1400
+      description       = "Remote file inclusion protection"
+      target_rule_set   = "rfi-v33-stable"
+      sensitivity_level = 2
+      preview           = false
+    }
+  }
+}
+```
+
+### WAF Rules with Opt-in/Opt-out
+
+```hcl
+module "cloud_armor_waf_advanced" {
+  source = "github.com/your-org/tfmodule-google-cloudarmor"
+
+  project_id  = "my-project-id"
+  name        = "waf-advanced-policy"
+  description = "WAF with opt-in and opt-out rules"
+
+  enable_layer7_ddos_defense          = false
+  layer7_ddos_defense_enable          = false
+  layer7_ddos_defense_rule_visibility = "STANDARD"
+
+  pre_configured_rules = {
+    # Opt-in: Only enable specific rule IDs
+    sqli_opt_in = {
+      action                  = "deny(403)"
+      priority                = 1000
+      description             = "SQLi with specific rules enabled"
+      target_rule_set         = "sqli-v33-stable"
+      sensitivity_level       = 0
+      include_target_rule_ids = [
+        "owasp-crs-v030301-id942251-sqli",
+        "owasp-crs-v030301-id942420-sqli",
+        "owasp-crs-v030301-id942431-sqli"
+      ]
+    }
+
+    # Opt-out: Enable all rules except specific ones
+    xss_opt_out = {
+      action                  = "deny(403)"
+      priority                = 1100
+      description             = "XSS with specific rules disabled"
+      target_rule_set         = "xss-v33-stable"
+      sensitivity_level       = 2
+      exclude_target_rule_ids = [
+        "owasp-crs-v030301-id941380-xss"
+      ]
+    }
+
+    # Standard sensitivity without opt-in/opt-out
+    lfi_standard = {
+      action            = "deny(403)"
+      priority          = 1200
+      description       = "LFI with standard sensitivity"
+      target_rule_set   = "lfi-v33-stable"
+      sensitivity_level = 2
+    }
+  }
+}
+```
+
+### WAF Rules with Exclusions
+
+```hcl
+module "cloud_armor_waf_exclusions" {
+  source = "github.com/your-org/tfmodule-google-cloudarmor"
+
+  project_id  = "my-project-id"
+  name        = "waf-exclusions-policy"
+  description = "WAF with request exclusions"
+
+  enable_layer7_ddos_defense          = false
+  layer7_ddos_defense_enable          = false
+  layer7_ddos_defense_rule_visibility = "STANDARD"
+
+  pre_configured_rules = {
+    sqli_with_exclusions = {
+      action            = "deny(403)"
+      priority          = 1000
+      description       = "SQLi with exclusions for API endpoints"
+      target_rule_set   = "sqli-v33-stable"
+      sensitivity_level = 1
+
+      preconfigured_waf_config_exclusions = {
+        exclude_api_key_header = {
+          target_rule_set = "sqli-v33-stable"
+          target_rule_ids = ["owasp-crs-v030301-id942251-sqli"]
+          
+          request_header = [
+            {
+              operator = "EQUALS"
+              value    = "X-API-Key"
+            }
+          ]
+        }
+
+        exclude_legacy_api = {
+          target_rule_set = "sqli-v33-stable"
+          target_rule_ids = ["owasp-crs-v030301-id942420-sqli"]
+          
+          request_uri = [
+            {
+              operator = "STARTS_WITH"
+              value    = "/api/v1/legacy"
+            }
+          ]
+        }
+
+        exclude_search_params = {
+          target_rule_set = "sqli-v33-stable"
+          
+          request_query_param = [
+            {
+              operator = "EQUALS"
+              value    = "search"
+            }
+          ]
+        }
+      }
+    }
+
+    xss_with_cookie_exclusion = {
+      action            = "deny(403)"
+      priority          = 1100
+      description       = "XSS with cookie exclusions"
+      target_rule_set   = "xss-v33-stable"
+      sensitivity_level = 2
+
+      preconfigured_waf_config_exclusions = {
+        exclude_session_cookie = {
+          target_rule_set = "xss-v33-stable"
+          
+          request_cookie = [
+            {
+              operator = "STARTS_WITH"
+              value    = "session_"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+### Custom Rules with CEL Expressions
+
+```hcl
+module "cloud_armor_custom_rules" {
+  source = "github.com/your-org/tfmodule-google-cloudarmor"
+
+  project_id  = "my-project-id"
+  name        = "custom-rules-policy"
+  description = "Security policy with custom CEL rules"
+
+  enable_layer7_ddos_defense          = false
+  layer7_ddos_defense_enable          = false
+  layer7_ddos_defense_rule_visibility = "STANDARD"
+
+  custom_rules = {
+    block_bad_bots = {
+      action      = "deny(403)"
+      priority    = 1000
+      description = "Block known bad bots"
+      preview     = false
+      expression  = "has(request.headers['user-agent']) && request.headers['user-agent'].contains('BadBot')"
+    }
+
+    geo_blocking = {
+      action      = "deny(403)"
+      priority    = 1100
+      description = "Block traffic from specific countries"
+      preview     = false
+      expression  = "origin.region_code in ['XX', 'YY', 'ZZ']"
+    }
+
+    allow_trusted_countries = {
+      action      = "allow"
+      priority    = 900
+      description = "Allow traffic from trusted countries"
+      preview     = false
+      expression  = "origin.region_code in ['US', 'CA', 'GB', 'AU']"
+    }
+
+    block_http_methods = {
+      action      = "deny(405)"
+      priority    = 1200
+      description = "Block specific HTTP methods"
+      preview     = false
+      expression  = "request.method in ['TRACE', 'TRACK', 'DELETE']"
+    }
+
+    require_api_auth = {
+      action      = "deny(401)"
+      priority    = 1300
+      description = "Require authentication for API endpoints"
+      preview     = false
+      expression  = "request.path.matches('/api/') && !has(request.headers['authorization'])"
+    }
+
+    block_admin_external = {
+      action      = "deny(403)"
+      priority    = 1400
+      description = "Block admin access from external IPs"
+      preview     = false
+      expression  = "request.path.matches('/admin/') && !inIpRange(origin.ip, '10.0.0.0/8')"
+    }
+  }
+}
+```
+
+### Rate Limiting with IP-based Rules
+
+```hcl
+module "cloud_armor_rate_limit" {
+  source = "github.com/your-org/tfmodule-google-cloudarmor"
+
+  project_id  = "my-project-id"
+  name        = "rate-limit-policy"
+  description = "Security policy with rate limiting"
+
+  enable_layer7_ddos_defense          = false
+  layer7_ddos_defense_enable          = false
+  layer7_ddos_defense_rule_visibility = "STANDARD"
+
+  security_rules = {
+    rate_limit_all_ips = {
+      action        = "rate_based_ban"
+      priority      = 1000
+      description   = "Rate limit 100 req/min per IP, ban for 10 minutes"
+      preview       = false
+      src_ip_ranges = ["*"]
+
+      rate_limit_options = {
+        enforce_on_key                       = "IP"
+        exceed_action                        = "deny(429)"
+        rate_limit_http_request_count        = 100
+        rate_limit_http_request_interval_sec = 60
+        ban_duration_sec                     = 600
+        ban_http_request_count               = 1000
+        ban_http_request_interval_sec        = 600
+      }
+    }
+  }
+}
+```
+
+### Rate Limiting with Custom Rules
+
+```hcl
+module "cloud_armor_rate_limit_custom" {
+  source = "github.com/your-org/tfmodule-google-cloudarmor"
+
+  project_id  = "my-project-id"
+  name        = "rate-limit-custom-policy"
+  description = "Advanced rate limiting with custom rules"
+
+  enable_layer7_ddos_defense          = false
+  layer7_ddos_defense_enable          = false
+  layer7_ddos_defense_rule_visibility = "STANDARD"
+
+  custom_rules = {
+    throttle_api_endpoints = {
+      action      = "throttle"
+      priority    = 1000
+      description = "Throttle API endpoints to 1000 req/min globally"
+      preview     = false
+      expression  = "request.path.matches('/api/')"
+
+      rate_limit_options = {
+        enforce_on_key                       = "ALL"
+        exceed_action                        = "deny(429)"
+        rate_limit_http_request_count        = 1000
+        rate_limit_http_request_interval_sec = 60
+      }
+    }
+
+    rate_limit_per_user = {
+      action      = "rate_based_ban"
+      priority    = 1100
+      description = "Rate limit per user header"
+      preview     = false
+      expression  = "has(request.headers['x-user-id'])"
+
+      rate_limit_options = {
+        enforce_on_key                       = "HTTP_HEADER"
+        enforce_on_key_name                  = "x-user-id"
+        exceed_action                        = "deny(429)"
+        rate_limit_http_request_count        = 50
+        rate_limit_http_request_interval_sec = 60
+        ban_duration_sec                     = 300
+      }
+    }
+
+    rate_limit_login = {
+      action      = "throttle"
+      priority    = 1200
+      description = "Rate limit login attempts per IP"
+      preview     = false
+      expression  = "request.path.matches('/login')"
+
+      rate_limit_options = {
+        enforce_on_key                       = "IP"
+        exceed_action                        = "deny(429)"
+        rate_limit_http_request_count        = 5
+        rate_limit_http_request_interval_sec = 60
+      }
+    }
+  }
+}
+```
+
+### Complete Example with All Features
+
+```hcl
+module "cloud_armor_complete" {
+  source = "github.com/your-org/tfmodule-google-cloudarmor"
+
+  project_id  = "my-project-id"
+  name        = "complete-security-policy"
+  description = "Comprehensive Cloud Armor policy with all features"
+  type        = "CLOUD_ARMOR"
+
+  # Layer 7 DDoS Protection
+  enable_layer7_ddos_defense          = true
+  layer7_ddos_defense_enable          = true
+  layer7_ddos_defense_rule_visibility = "PREMIUM"
+
+  # Advanced Options
+  json_parsing                 = "STANDARD"
+  log_level                    = "VERBOSE"
+  user_ip_request_headers      = ["X-Forwarded-For", "X-Real-IP"]
+  json_custom_content_types    = ["application/json", "application/vnd.api+json"]
+  request_body_inspection_size = "MEDIUM"
+
+  # IP-based Security Rules
+  security_rules = {
+    deny_malicious_ips = {
+      action        = "deny(403)"
+      priority      = 1000
+      description   = "Block known malicious IPs"
+      preview       = false
+      src_ip_ranges = ["192.0.2.0/24", "198.51.100.0/24"]
+    }
+
+    allow_trusted_ips = {
+      action        = "allow"
+      priority      = 900
+      description   = "Allow trusted IP ranges"
+      preview       = false
+      src_ip_ranges = ["10.0.0.0/8", "172.16.0.0/12"]
+    }
+
+    rate_limit_all = {
+      action        = "rate_based_ban"
+      priority      = 1100
+      description   = "Global rate limiting"
+      preview       = false
+      src_ip_ranges = ["*"]
+
+      rate_limit_options = {
+        enforce_on_key                       = "IP"
+        exceed_action                        = "deny(429)"
+        rate_limit_http_request_count        = 100
+        rate_limit_http_request_interval_sec = 60
+        ban_duration_sec                     = 600
+      }
+    }
+  }
+
+  # Pre-configured WAF Rules
+  pre_configured_rules = {
+    sqli_protection = {
+      action            = "deny(403)"
+      priority          = 2000
+      description       = "SQL injection protection"
+      target_rule_set   = "sqli-v33-stable"
+      sensitivity_level = 1
+      preview           = false
+
+      preconfigured_waf_config_exclusions = {
+        exclude_search = {
+          target_rule_set = "sqli-v33-stable"
+          request_query_param = [
+            {
+              operator = "EQUALS"
+              value    = "q"
+            }
+          ]
+        }
+      }
+    }
+
+    xss_protection = {
+      action            = "deny(403)"
+      priority          = 2100
+      description       = "XSS protection"
+      target_rule_set   = "xss-v33-stable"
+      sensitivity_level = 2
+      preview           = false
+    }
+
+    lfi_protection = {
+      action            = "deny(403)"
+      priority          = 2200
+      description       = "Local file inclusion protection"
+      target_rule_set   = "lfi-v33-stable"
+      sensitivity_level = 2
+      preview           = false
+    }
+
+    rce_protection = {
+      action            = "deny(403)"
+      priority          = 2300
+      description       = "Remote code execution protection"
+      target_rule_set   = "rce-v33-stable"
+      sensitivity_level = 1
+      preview           = false
+    }
+  }
+
+  # Custom Rules
+  custom_rules = {
+    block_bad_bots = {
+      action      = "deny(403)"
+      priority    = 3000
+      description = "Block bad bots"
+      preview     = false
+      expression  = "has(request.headers['user-agent']) && request.headers['user-agent'].contains('BadBot')"
+    }
+
+    geo_blocking = {
+      action      = "deny(403)"
+      priority    = 3100
+      description = "Block traffic from specific countries"
+      preview     = false
+      expression  = "origin.region_code in ['XX', 'YY']"
+    }
+
+    throttle_api = {
+      action      = "throttle"
+      priority    = 3200
+      description = "Throttle API requests"
+      preview     = false
+      expression  = "request.path.matches('/api/')"
+
+      rate_limit_options = {
+        enforce_on_key                       = "IP"
+        exceed_action                        = "deny(429)"
+        rate_limit_http_request_count        = 200
+        rate_limit_http_request_interval_sec = 60
+      }
+    }
+
+    require_auth_admin = {
+      action      = "deny(401)"
+      priority    = 3300
+      description = "Require auth for admin pages"
+      preview     = false
+      expression  = "request.path.matches('/admin/') && !has(request.headers['authorization'])"
+    }
+  }
+
+  default_rule_action = "allow"
+}
+```
+
+## Inputs
+
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| project_id | The project ID of the VPC network | `string` | n/a | yes |
+| name | Name of security policy | `string` | n/a | yes |
+| description | Description of security policy | `string` | `null` | no |
+| region | Region for regional policy (null for global) | `string` | `null` | no |
+| type | Policy type: CLOUD_ARMOR or CLOUD_ARMOR_EDGE | `string` | `"CLOUD_ARMOR"` | no |
+| enable_layer7_ddos_defense | Enable Layer 7 DDoS Defense (Global only) | `bool` | `false` | no |
+| layer7_ddos_defense_enable | Enable the Layer 7 DDoS defense config | `bool` | `true` | no |
+| layer7_ddos_defense_rule_visibility | Rule visibility: STANDARD or PREMIUM | `string` | `"STANDARD"` | no |
+| json_parsing | JSON parsing mode | `string` | `null` | no |
+| log_level | Logging level: NORMAL or VERBOSE | `string` | `null` | no |
+| request_body_inspection_size | Request body inspection size | `string` | `null` | no |
+| user_ip_request_headers | Headers for client IP resolution | `list(string)` | `[]` | no |
+| json_custom_content_types | Custom JSON content types | `list(string)` | `[]` | no |
+| pre_configured_rules | Pre-configured WAF rules | `map(object)` | `{}` | no |
+| security_rules | IP-based security rules | `map(object)` | `{}` | no |
+| custom_rules | Custom CEL-based rules | `map(object)` | `{}` | no |
+| default_rule_action | Default rule action (regional only) | `string` | `"allow"` | no |
+
+## Outputs
+
+| Name | Description |
+|------|-------------|
+| policy | Security policy created (global or regional) |
+| security_policy_id | Security policy ID |
+| security_policy_self_link | Security policy self link |
+| security_rules | Security policy rules created |
+
+## Requirements
+
+| Name | Version |
+|------|---------|
+| terraform | >= 1.5.0 |
+| google | >= 7.0.0, < 8.0.0 |
+| google-beta | >= 7.0.0, < 8.0.0 |
+
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for version history and changes.
