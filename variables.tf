@@ -218,3 +218,9 @@ variable "default_rule_action" {
   type        = string
   default     = "allow"
 }
+
+variable "global_preview_mode" {
+  description = "If true, all security rules, custom rules, and pre-configured WAF rules run in preview mode (logging only, no blocking)"
+  type        = bool
+  default     = false
+}

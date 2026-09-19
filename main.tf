@@ -15,7 +15,7 @@ locals {
     action                  = policy.action
     priority                = 0
     description             = policy.description
-    preview                 = policy.preview
+    preview                 = var.global_preview_mode ? true : policy.preview
     rate_limit_options      = policy.rate_limit_options
     } if length(policy["include_target_rule_ids"]) > 0
   }
@@ -33,16 +33,16 @@ locals {
     action                  = policy.action
     priority                = policy.priority
     description             = policy.description
-    preview                 = policy.preview
+    preview                 = var.global_preview_mode ? true : policy.preview
     rate_limit_options      = policy.rate_limit_options
     } if length(policy["include_target_rule_ids"]) == 0 && length(policy["exclude_target_rule_ids"]) > 0
   }
-  
+
   pre_configured_rules_exclude_expr = { for name, policy in local.pre_configured_rules_exclude : name => {
     expression = "evaluatePreconfiguredWaf('${policy["target_rule_set"]}', {'sensitivity': ${policy.sensitivity_level}, 'opt_out_rule_ids': ['${policy.exclude_target_rule_ids}']})"
     }
   }
-  
+
   ## Combine all the preconfigured rules
   pre_configured_rules_expr = merge(local.pre_configured_rules_no_cond_expr, local.pre_configured_rules_include_expr, local.pre_configured_rules_exclude_expr)
 
@@ -73,10 +73,10 @@ resource "google_compute_security_policy" "security_policy" {
   dynamic "advanced_options_config" {
     for_each = local.advanced_options_config_enable ? ["advanced_options_config"] : []
     content {
-      json_parsing = var.json_parsing
-      log_level    = var.log_level
+      json_parsing            = var.json_parsing
+      log_level               = var.log_level
       user_ip_request_headers = length(var.user_ip_request_headers) > 0 ? var.user_ip_request_headers : null
-      
+
       dynamic "json_custom_config" {
         for_each = length(var.json_custom_content_types) > 0 ? ["json_custom_config"] : []
         content {
@@ -97,9 +97,9 @@ resource "google_compute_security_policy_rule" "security_rules" {
 
   action      = each.value["action"]
   priority    = each.value["priority"]
-  preview     = each.value["preview"]
+  preview     = var.global_preview_mode ? true : each.value["preview"]
   description = each.value["description"]
-  
+
   match {
     versioned_expr = "SRC_IPS_V1"
     config {
@@ -156,9 +156,9 @@ resource "google_compute_security_policy_rule" "custom_rules" {
 
   action      = each.value["action"]
   priority    = each.value["priority"]
-  preview     = each.value["preview"]
+  preview     = var.global_preview_mode ? true : each.value["preview"]
   description = each.value["description"]
-  
+
   match {
     expr {
       expression = each.value["expression"]
@@ -202,7 +202,7 @@ resource "google_compute_security_policy_rule" "custom_rules" {
       }
     }
   }
-  
+
   # Optional preconfigured_waf_config Block if preconfigured_waf_config_exclusion is provided
   dynamic "preconfigured_waf_config" {
     for_each = each.value.preconfigured_waf_config_exclusions == null ? [] : ["preconfigured_waf_config_exclusions"]
@@ -212,7 +212,7 @@ resource "google_compute_security_policy_rule" "custom_rules" {
         content {
           target_rule_set = exclusion.value.target_rule_set
           target_rule_ids = exclusion.value.target_rule_ids
-          
+
           dynamic "request_header" {
             for_each = exclusion.value.request_header == null ? {} : { for x in exclusion.value.request_header : "${x.operator}-${base64encode(coalesce(x.value, "test"))}" => x }
             content {
@@ -220,7 +220,7 @@ resource "google_compute_security_policy_rule" "custom_rules" {
               value    = request_header.value.operator == "EQUALS_ANY" ? null : request_header.value.value
             }
           }
-          
+
           dynamic "request_cookie" {
             for_each = exclusion.value.request_cookie == null ? {} : { for x in exclusion.value.request_cookie : "${x.operator}-${base64encode(coalesce(x.value, "test"))}" => x }
             content {
@@ -228,7 +228,7 @@ resource "google_compute_security_policy_rule" "custom_rules" {
               value    = request_cookie.value.operator == "EQUALS_ANY" ? null : request_cookie.value.value
             }
           }
-          
+
           dynamic "request_uri" {
             for_each = exclusion.value.request_uri == null ? {} : { for x in exclusion.value.request_uri : "${x.operator}-${base64encode(coalesce(x.value, "test"))}" => x }
             content {
@@ -236,7 +236,7 @@ resource "google_compute_security_policy_rule" "custom_rules" {
               value    = request_uri.value.operator == "EQUALS_ANY" ? null : request_uri.value.value
             }
           }
-          
+
           dynamic "request_query_param" {
             for_each = exclusion.value.request_query_param == null ? {} : { for x in exclusion.value.request_query_param : "${x.operator}-${base64encode(coalesce(x.value, "test"))}" => x }
             content {
@@ -253,7 +253,7 @@ resource "google_compute_security_policy_rule" "custom_rules" {
   lifecycle {
     ignore_changes = [
       match[0].expr_options,
-      match[0].expr[0].expression  # Ignore expression formatting differences
+      match[0].expr[0].expression # Ignore expression formatting differences
     ]
   }
 }
@@ -268,9 +268,9 @@ resource "google_compute_security_policy_rule" "pre_configured_rules" {
 
   action      = each.value["action"]
   priority    = each.value["priority"]
-  preview     = each.value["preview"]
+  preview     = var.global_preview_mode ? true : each.value["preview"]
   description = each.value["description"]
-  
+
   match {
     expr {
       expression = local.pre_configured_rules_expr[each.key].expression
@@ -314,7 +314,7 @@ resource "google_compute_security_policy_rule" "pre_configured_rules" {
       }
     }
   }
-  
+
   # Optional preconfigured_waf_config Block if preconfigured_waf_config_exclusion is provided
   dynamic "preconfigured_waf_config" {
     for_each = each.value.preconfigured_waf_config_exclusions == null ? [] : ["preconfigured_waf_config_exclusions"]
@@ -324,7 +324,7 @@ resource "google_compute_security_policy_rule" "pre_configured_rules" {
         content {
           target_rule_set = exclusion.value.target_rule_set
           target_rule_ids = exclusion.value.target_rule_ids
-          
+
           dynamic "request_header" {
             for_each = exclusion.value.request_header == null ? {} : { for x in exclusion.value.request_header : "${x.operator}-${base64encode(coalesce(x.value, "test"))}" => x }
             content {
@@ -332,7 +332,7 @@ resource "google_compute_security_policy_rule" "pre_configured_rules" {
               value    = request_header.value.operator == "EQUALS_ANY" ? null : request_header.value.value
             }
           }
-          
+
           dynamic "request_cookie" {
             for_each = exclusion.value.request_cookie == null ? {} : { for x in exclusion.value.request_cookie : "${x.operator}-${base64encode(coalesce(x.value, "test"))}" => x }
             content {
@@ -340,7 +340,7 @@ resource "google_compute_security_policy_rule" "pre_configured_rules" {
               value    = request_cookie.value.operator == "EQUALS_ANY" ? null : request_cookie.value.value
             }
           }
-          
+
           dynamic "request_uri" {
             for_each = exclusion.value.request_uri == null ? {} : { for x in exclusion.value.request_uri : "${x.operator}-${base64encode(coalesce(x.value, "test"))}" => x }
             content {
@@ -348,7 +348,7 @@ resource "google_compute_security_policy_rule" "pre_configured_rules" {
               value    = request_uri.value.operator == "EQUALS_ANY" ? null : request_uri.value.value
             }
           }
-          
+
           dynamic "request_query_param" {
             for_each = exclusion.value.request_query_param == null ? {} : { for x in exclusion.value.request_query_param : "${x.operator}-${base64encode(coalesce(x.value, "test"))}" => x }
             content {
@@ -365,7 +365,7 @@ resource "google_compute_security_policy_rule" "pre_configured_rules" {
   lifecycle {
     ignore_changes = [
       match[0].expr_options,
-      match[0].expr[0].expression  # Ignore expression formatting differences
+      match[0].expr[0].expression # Ignore expression formatting differences
     ]
   }
 }
@@ -380,7 +380,7 @@ resource "google_compute_security_policy_rule" "default_rule" {
   description     = "default rule"
   action          = var.default_rule_action
   priority        = "2147483647"
-  
+
   match {
     versioned_expr = "SRC_IPS_V1"
     config {
@@ -409,7 +409,7 @@ resource "google_compute_region_security_policy" "security_policy" {
       log_level                    = var.log_level
       request_body_inspection_size = var.request_body_inspection_size
       user_ip_request_headers      = length(var.user_ip_request_headers) > 0 ? var.user_ip_request_headers : null
-      
+
       dynamic "json_custom_config" {
         for_each = length(var.json_custom_content_types) > 0 ? ["json_custom_config"] : []
         content {
@@ -431,9 +431,9 @@ resource "google_compute_region_security_policy_rule" "security_rules" {
 
   action      = each.value["action"]
   priority    = each.value["priority"]
-  preview     = each.value["preview"]
+  preview     = var.global_preview_mode ? true : each.value["preview"]
   description = each.value["description"]
-  
+
   match {
     versioned_expr = "SRC_IPS_V1"
     config {
@@ -491,9 +491,9 @@ resource "google_compute_region_security_policy_rule" "custom_rules" {
 
   action      = each.value["action"]
   priority    = each.value["priority"]
-  preview     = each.value["preview"]
+  preview     = var.global_preview_mode ? true : each.value["preview"]
   description = each.value["description"]
-  
+
   match {
     expr {
       expression = each.value["expression"]
@@ -537,7 +537,7 @@ resource "google_compute_region_security_policy_rule" "custom_rules" {
       }
     }
   }
-  
+
   # Optional preconfigured_waf_config Block if preconfigured_waf_config_exclusion is provided
   dynamic "preconfigured_waf_config" {
     for_each = each.value.preconfigured_waf_config_exclusions == null ? [] : ["preconfigured_waf_config_exclusions"]
@@ -547,7 +547,7 @@ resource "google_compute_region_security_policy_rule" "custom_rules" {
         content {
           target_rule_set = exclusion.value.target_rule_set
           target_rule_ids = exclusion.value.target_rule_ids
-          
+
           dynamic "request_header" {
             for_each = exclusion.value.request_header == null ? {} : { for x in exclusion.value.request_header : "${x.operator}-${base64encode(coalesce(x.value, "test"))}" => x }
             content {
@@ -555,7 +555,7 @@ resource "google_compute_region_security_policy_rule" "custom_rules" {
               value    = request_header.value.operator == "EQUALS_ANY" ? null : request_header.value.value
             }
           }
-          
+
           dynamic "request_cookie" {
             for_each = exclusion.value.request_cookie == null ? {} : { for x in exclusion.value.request_cookie : "${x.operator}-${base64encode(coalesce(x.value, "test"))}" => x }
             content {
@@ -563,7 +563,7 @@ resource "google_compute_region_security_policy_rule" "custom_rules" {
               value    = request_cookie.value.operator == "EQUALS_ANY" ? null : request_cookie.value.value
             }
           }
-          
+
           dynamic "request_uri" {
             for_each = exclusion.value.request_uri == null ? {} : { for x in exclusion.value.request_uri : "${x.operator}-${base64encode(coalesce(x.value, "test"))}" => x }
             content {
@@ -571,7 +571,7 @@ resource "google_compute_region_security_policy_rule" "custom_rules" {
               value    = request_uri.value.operator == "EQUALS_ANY" ? null : request_uri.value.value
             }
           }
-          
+
           dynamic "request_query_param" {
             for_each = exclusion.value.request_query_param == null ? {} : { for x in exclusion.value.request_query_param : "${x.operator}-${base64encode(coalesce(x.value, "test"))}" => x }
             content {
@@ -596,9 +596,9 @@ resource "google_compute_region_security_policy_rule" "pre_configured_rules" {
 
   action      = each.value["action"]
   priority    = each.value["priority"]
-  preview     = each.value["preview"]
+  preview     = var.global_preview_mode ? true : each.value["preview"]
   description = each.value["description"]
-  
+
   match {
     expr {
       expression = local.pre_configured_rules_expr[each.key].expression
@@ -642,7 +642,7 @@ resource "google_compute_region_security_policy_rule" "pre_configured_rules" {
       }
     }
   }
-  
+
   # Optional preconfigured_waf_config Block if preconfigured_waf_config_exclusion is provided
   dynamic "preconfigured_waf_config" {
     for_each = each.value.preconfigured_waf_config_exclusions == null ? [] : ["preconfigured_waf_config_exclusions"]
@@ -652,7 +652,7 @@ resource "google_compute_region_security_policy_rule" "pre_configured_rules" {
         content {
           target_rule_set = exclusion.value.target_rule_set
           target_rule_ids = exclusion.value.target_rule_ids
-          
+
           dynamic "request_header" {
             for_each = exclusion.value.request_header == null ? {} : { for x in exclusion.value.request_header : "${x.operator}-${base64encode(coalesce(x.value, "test"))}" => x }
             content {
@@ -660,7 +660,7 @@ resource "google_compute_region_security_policy_rule" "pre_configured_rules" {
               value    = request_header.value.operator == "EQUALS_ANY" ? null : request_header.value.value
             }
           }
-          
+
           dynamic "request_cookie" {
             for_each = exclusion.value.request_cookie == null ? {} : { for x in exclusion.value.request_cookie : "${x.operator}-${base64encode(coalesce(x.value, "test"))}" => x }
             content {
@@ -668,7 +668,7 @@ resource "google_compute_region_security_policy_rule" "pre_configured_rules" {
               value    = request_cookie.value.operator == "EQUALS_ANY" ? null : request_cookie.value.value
             }
           }
-          
+
           dynamic "request_uri" {
             for_each = exclusion.value.request_uri == null ? {} : { for x in exclusion.value.request_uri : "${x.operator}-${base64encode(coalesce(x.value, "test"))}" => x }
             content {
@@ -676,7 +676,7 @@ resource "google_compute_region_security_policy_rule" "pre_configured_rules" {
               value    = request_uri.value.operator == "EQUALS_ANY" ? null : request_uri.value.value
             }
           }
-          
+
           dynamic "request_query_param" {
             for_each = exclusion.value.request_query_param == null ? {} : { for x in exclusion.value.request_query_param : "${x.operator}-${base64encode(coalesce(x.value, "test"))}" => x }
             content {
@@ -701,7 +701,7 @@ resource "google_compute_region_security_policy_rule" "default_rule" {
   description     = "default rule"
   action          = var.default_rule_action
   priority        = "2147483647"
-  
+
   match {
     versioned_expr = "SRC_IPS_V1"
     config {

@@ -658,6 +658,7 @@ module "cloud_armor_complete" {
 | security_rules | IP-based security rules | `map(object)` | `{}` | no |
 | custom_rules | Custom CEL-based rules | `map(object)` | `{}` | no |
 | default_rule_action | Default rule action (regional only) | `string` | `"allow"` | no |
+| global_preview_mode | Enable global preview mode for all security rules and WAF rules (dry-run mode) | `bool` | `false` | no |
 
 ## Outputs
 
