@@ -13,6 +13,7 @@ Terraform module for deploying and managing Google Cloud Armor security policies
 - **WAF Exclusions** - Fine-tune WAF rules with request header, cookie, URI, and query parameter exclusions
 - **Advanced Configuration** - JSON parsing, custom logging, user IP headers, and request body inspection
 - **Preview Mode** - Test rules without enforcement before applying them
+- **Resource Labels** - Add key-value tags to security policies for compliance and inventory tracking (Cloud Armor labels)
 - **Flexible Rule Management** - Priority-based ordering, dynamic rule creation, and multiple output options
 
 ## Usage
@@ -646,6 +647,7 @@ module "cloud_armor_complete" {
 | description | Description of security policy | `string` | `null` | no |
 | region | Region for regional policy (null for global) | `string` | `null` | no |
 | type | Policy type: CLOUD_ARMOR or CLOUD_ARMOR_EDGE | `string` | `"CLOUD_ARMOR"` | no |
+| labels | Key-value labels for the Cloud Armor security policy | `map(string)` | `{}` | no |
 | enable_layer7_ddos_defense | Enable Layer 7 DDoS Defense (Global only) | `bool` | `false` | no |
 | layer7_ddos_defense_enable | Enable the Layer 7 DDoS defense config | `bool` | `true` | no |
 | layer7_ddos_defense_rule_visibility | Rule visibility: STANDARD or PREMIUM | `string` | `"STANDARD"` | no |
